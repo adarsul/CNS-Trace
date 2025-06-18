@@ -4,6 +4,10 @@ import pickle
 import csv
 from config import PWM_FOLDER, GC_FILE, THRESHOLDS_FILE
 
+# neutral model utils
+import pandas as pd
+from config import DATA_FOLDER
+
 def find_pwm_files(pwm_folder = PWM_FOLDER):
     """Finds all PWM files in a directory with a given prefix.
 
@@ -390,3 +394,24 @@ def filter_pwm_db(pwm_db, tf_names):
         print(f"Warning: The following TFs were not found in the PWM database: {', '.join(missing_tfs)}")
 
     return filtered_pwm_db
+
+# Neutral model utils (maybe seperate file)-------------------------------
+
+def get_prob_mat(data_folder = DATA_FOLDER):
+  """
+  Reads a probability matrix from a CSV file into a pandas DataFrame.
+
+  This function loads a pre-calculated matrix of probabilities from a specified
+  folder. The CSV file is expected to be named 'probability_matrix.csv' and
+  should contain an index column.
+
+  Args:
+    data_folder (str, optional): The path to the folder containing the CSV
+                                 file. Defaults to the global constant
+                                 DATA_FOLDER.
+
+  Returns:
+    pandas.DataFrame: A DataFrame containing the probability matrix, with the
+                    first column of the CSV set as the DataFrame index.
+  """
+  return pd.read_csv(data_folder + 'probability_matrix.csv', index_col=0)

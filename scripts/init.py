@@ -78,7 +78,7 @@ def reconstruct_sequences(cns_id, annotated_tree_file, path_to_binary=FASTML_BIN
 
 def create_mutation_matrix(cns_id, tree, sequences, output_folder=OUTPUT_FOLDER):
     """
-    Generates a mutation probability matrix for a given CNS
+    Generates a mutation  matrix for a given CNS
     based on the provided phylogenetic tree and reconstructed sequences.
     The result is a matrix with a count of observed substitutions from each basepair.
 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         "--calc_mut_mat",
         action='store_true',
         default=False,
-        help="Calculate and save the mutation count matrix."
+        help="Calculate and save the mutation count matrix.  "
     )
 
     # Parse the arguments

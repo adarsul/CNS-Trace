@@ -177,6 +177,6 @@ def initialize_event_counts():
   Returns:
       dict: A dictionary with event names (str) as keys and their counts (int)
             as values, with all counts set to 0.
-            Example: {'Bind_to_Bind': 0, 'Bind_to_Weak': 0, 'Bind_to_None': 0}
+            Example: {'Bind_to_Bind': 0, 'Bind_to_Weak': 0, 'Bind_to_None': 0} 
   """
   return {event: 0 for event in EVENTS}
