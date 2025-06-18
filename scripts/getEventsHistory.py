@@ -6,85 +6,10 @@ from Bio import Phylo
 from config import OUTPUT_FOLDER
 from reconstruct import reconstructed_fasta_to_dict
 from getBindingEnergy import getBindingEnergy, classify_binding_energy, createPWMdb, create_gc_dict, importThresDB, filter_pwm_db
+from model_utils import *
 
 
 
-def import_tree_and_sequences(cns_id, data_folder=OUTPUT_FOLDER):
-    """Imports a phylogenetic tree and reconstructed sequences for a given CNS ID.
-
-    This function reads a Newick tree file and a FASTA file containing
-    reconstructed ancestral sequences, both associated with a specific CNS ID.
-    It assumes a specific directory structure (see Notes).
-
-    Args:
-        cns_id (str): The CNS ID (Conserved Non-coding Sequence ID).
-        data_folder (str, optional): The path to the main data directory.
-            Defaults to DATA_FOLDER (defined elsewhere in the script/configuration).
-
-    Returns:
-        tuple: A tuple containing:
-            - tree (Bio.Phylo.BaseTree.Tree): A Biopython tree object representing the phylogeny.
-            - sequences (dict): A dictionary where keys are node names and values are
-            sequences 
-
-    Raises:
-        FileNotFoundError: If the tree file or sequence file for the given
-            CNS ID does not exist.
-
-    Example:
-        >>> tree, sequences = import_tree_and_sequences("CNS123")
-        >>> print(tree.root.name)  # Accessing the root of the tree
-        'Anc0'
-        >>> print(sequences["Anc0"]) # Accessing a sequence
-        'ATGC...'
-
-    Notes:
-        - Assumes the following directory structure within `data_folder`:
-            - `data_folder/sequences/`: Contains FASTA files with reconstructed sequences.
-            - `data_folder/trees/`: Contains Newick tree files named as `{cns_id}.trimmed.annotated.tree`.
-        -  The tree files are expected to be trimmed and annotated.
-    """
-    sequence_path = os.path.join(data_folder, 'sequences')
-    tree_path = os.path.join(data_folder, 'trees', f'{cns_id}.trimmed.annotated.tree')
-    
-    #basic error handling:
-    if not os.path.exists(tree_path):
-        raise FileNotFoundError(f"Tree file not found: {tree_path}")
-    if not os.path.exists(sequence_path):
-        raise FileNotFoundError(f"Sequence directory not found: {sequence_path}")
-    
-    # Import reconstructed sequences and trimmed tree
-    sequences = reconstructed_fasta_to_dict(cns_id, sequence_path)
-    tree = Phylo.read(tree_path, format='newick')
-    return tree, sequences
-
-
-def is_node_name(string):
-    """
-    Checks if a given string is a node name conforming to the pattern "N#", 
-    where '#' represents one or more digits.
-
-    Args:
-        string (str): The string to be checked.
-
-    Returns:
-        bool: True if the string matches the node name pattern, False otherwise.
-
-    Example:
-        >>> is_node_name("N123")
-        True
-        >>> is_node_name("N5")
-        True
-        >>> is_node_name("Node1")
-        False
-        >>> is_node_name("N")
-        False
-        >>> is_node_name("123N")
-        False
-    """
-    if not isinstance(string, str):
-        return False
-    return re.match(r'^N\d+$', string) is not None
     
 def unload_node(node, sequences):
     """
@@ -320,7 +245,7 @@ def main(cns_id, output_folder=OUTPUT_FOLDER, tf_names = None):
     """
     events_folder = os.path.join(output_folder, 'events')
     os.makedirs(events_folder, exist_ok=True)
-    output_file = os.path.join(events_folder, f'{cns_id}.events.csv')
+    output_file = initialize_output_file(cns_id, events_folder, '.events.csv')
 
     # Initialize (or clear) the output file
     open(output_file, 'w').close()

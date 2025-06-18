@@ -132,7 +132,7 @@ def classify_seq_binding(seq: str, tf: str, pwm_db: dict, thres_db: dict) -> str
     binding = classify_binding_energy(energy, tf, thres_db)
     return binding, pos
 
-def count_substitutions(s1, s2, inconclusive = INCONCLUSIVE_NT):
+def count_substitutions(s1: str, s2:str, inconclusive = INCONCLUSIVE_NT):
     """
     Count the number of character substitutions needed to transform s1 into s2.
     Does not count substitutions if either character is '-'.

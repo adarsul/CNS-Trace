@@ -2,11 +2,46 @@ import sys
 import os
 import pickle
 import csv
+import re
 from config import PWM_FOLDER, GC_FILE, THRESHOLDS_FILE
 
 # neutral model utils
 import pandas as pd
 from config import DATA_FOLDER
+
+def initialize_output_file(cns_id, output_folder, output_file_suffix):
+    """Creates or clears an output file and returns its path.
+
+    This function ensures that the specified output directory exists,
+    constructs the full output file path, and either creates a new, empty
+    file or truncates an existing file to zero length.
+
+    Args:
+        cns_id (str): The CNS ID. This is used to construct the filename.
+        output_folder (str): The path to the directory where the output file
+            should be created.
+        output_file_suffix (str): The suffix (including the extension, e.g., ".txt")
+            to be added to the CNS ID to form the filename.
+
+    Returns:
+        str: The full path to the created or cleared output file.
+
+    Example:
+        >>> output_file = initialize_output_file("CNS42", "/path/to/results", "_results.txt")
+        >>> print(output_file)
+        /path/to/results/CNS42_results.txt
+
+    Notes:
+        - If the `output_folder` does not exist, it will be created.
+        - If a file with the constructed filename already exists, it will be
+          truncated (emptied).
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    filename = os.path.join(output_folder, cns_id + output_file_suffix)
+    open(filename, 'w').close()  # Create or truncate the file
+    return filename
+
 
 def find_pwm_files(pwm_folder = PWM_FOLDER):
     """Finds all PWM files in a directory with a given prefix.
@@ -415,3 +450,158 @@ def get_prob_mat(data_folder = DATA_FOLDER):
                     first column of the CSV set as the DataFrame index.
   """
   return pd.read_csv(data_folder + 'probability_matrix.csv', index_col=0)
+
+def get_same_pos_dict(cns_id, output_folder):
+    """
+    Reads an events CSV file to create a lookup dictionary for positional conservation.
+
+    This function constructs a file path to a specific '{cns_id}.events.csv' file
+    inside the given output folder. It then parses this CSV file to build a
+    nested dictionary that maps a phylogenetic branch (defined by a transcription
+    factor, a parent node, and a child node) to a boolean value. This boolean
+    indicates whether a binding event was observed at the same position on that branch.
+
+    The function uses nested defaultdict objects for efficient population and then
+    converts the final structure to a standard nested dictionary before returning.
+
+    Args:
+        cns_id (str or int): The identifier for the conserved non-coding sequence (CNS).
+                             This is used to identify the correct input file.
+        output_folder (str): The path to the directory containing the event files.
+                             It should typically end with a '/'.
+
+    Returns:
+        dict: A standard, nested Python dictionary with the following structure:
+              {tf_id: {parent_name: {child_name: bool}}}
+              The boolean is True if the binding position was conserved for that
+              TF on that specific parent-to-child branch, and False otherwise.
+
+    Note:
+        - This function expects the input CSV file to have a specific format, as it
+          reads data from hardcoded column indices:
+            - Column 1: Transcription Factor (tf)
+            - Column 2: Parent node (parent)
+            - Column 6: Child node (child)
+            - Last Column: Same position flag (same_pos)
+        - It includes two internal helper functions: `read_bool` for converting string
+          representations to boolean values, and `convert_to_standard_dict` to
+          transform the final `defaultdict` into a regular `dict`, which prevents
+          accidental key creation upon access later in the code.
+    """
+    import csv
+    from collections import defaultdict
+
+    def read_bool(val):
+        """Converts a string from the CSV to a boolean."""
+        # Handles "False" or empty strings as False.
+        if val == "False" or not val:
+            return False
+        return True
+
+    def convert_to_standard_dict(d):
+        """Recursively converts a defaultdict to a standard dict."""
+        if isinstance(d, defaultdict):
+            # Recurse for nested defaultdicts
+            return {k: convert_to_standard_dict(v) for k, v in d.items()}
+        return d
+
+    # Construct the full path to the input file
+    events_file = output_folder + str(cns_id) + '.events.csv'
+    
+    # Initialize a nested defaultdict for easy population.
+    # Structure: tf -> parent -> child -> bool
+    same_pos_dict = defaultdict(lambda: defaultdict(dict))
+
+    try:
+        with open(events_file, 'r') as events:
+            reader = csv.reader(events)
+            for row in reader:
+                # Ensure the row has enough columns to prevent IndexError
+                if len(row) > 6:
+                    tf, parent, child, same_pos = row[1], row[2], row[6], row[-1]
+                    same_pos_dict[tf][parent][child] = read_bool(same_pos)
+    except FileNotFoundError:
+        print(f"Warning: Events file not found at {events_file}. Returning an empty dictionary.")
+        return {}
+    except IndexError as e:
+        print(f"Warning: A row in {events_file} had an unexpected format. Error: {e}. Partial data may be returned.")
+
+    # Convert the completed defaultdict to a standard dict before returning
+    return convert_to_standard_dict(same_pos_dict)
+
+def import_tree_and_sequences(cns_id, data_folder=OUTPUT_FOLDER):
+    """Imports a phylogenetic tree and reconstructed sequences for a given CNS ID.
+
+    This function reads a Newick tree file and a FASTA file containing
+    reconstructed ancestral sequences, both associated with a specific CNS ID.
+    It assumes a specific directory structure (see Notes).
+
+    Args:
+        cns_id (str): The CNS ID (Conserved Non-coding Sequence ID).
+        data_folder (str, optional): The path to the main data directory.
+            Defaults to DATA_FOLDER (defined elsewhere in the script/configuration).
+
+    Returns:
+        tuple: A tuple containing:
+            - tree (Bio.Phylo.BaseTree.Tree): A Biopython tree object representing the phylogeny.
+            - sequences (dict): A dictionary where keys are node names and values are
+            sequences 
+
+    Raises:
+        FileNotFoundError: If the tree file or sequence file for the given
+            CNS ID does not exist.
+
+    Example:
+        >>> tree, sequences = import_tree_and_sequences("CNS123")
+        >>> print(tree.root.name)  # Accessing the root of the tree
+        'Anc0'
+        >>> print(sequences["Anc0"]) # Accessing a sequence
+        'ATGC...'
+
+    Notes:
+        - Assumes the following directory structure within `data_folder`:
+            - `data_folder/sequences/`: Contains FASTA files with reconstructed sequences.
+            - `data_folder/trees/`: Contains Newick tree files named as `{cns_id}.trimmed.annotated.tree`.
+        -  The tree files are expected to be trimmed and annotated.
+    """
+    sequence_path = os.path.join(data_folder, 'sequences')
+    tree_path = os.path.join(data_folder, 'trees', f'{cns_id}.trimmed.annotated.tree')
+    
+    #basic error handling:
+    if not os.path.exists(tree_path):
+        raise FileNotFoundError(f"Tree file not found: {tree_path}")
+    if not os.path.exists(sequence_path):
+        raise FileNotFoundError(f"Sequence directory not found: {sequence_path}")
+    
+    # Import reconstructed sequences and trimmed tree
+    sequences = reconstructed_fasta_to_dict(cns_id, sequence_path)
+    tree = Phylo.read(tree_path, format='newick')
+    return tree, sequences
+
+
+def is_node_name(string):
+    """
+    Checks if a given string is a node name conforming to the pattern "N#", 
+    where '#' represents one or more digits.
+
+    Args:
+        string (str): The string to be checked.
+
+    Returns:
+        bool: True if the string matches the node name pattern, False otherwise.
+
+    Example:
+        >>> is_node_name("N123")
+        True
+        >>> is_node_name("N5")
+        True
+        >>> is_node_name("Node1")
+        False
+        >>> is_node_name("N")
+        False
+        >>> is_node_name("123N")
+        False
+    """
+    if not isinstance(string, str):
+        return False
+    return re.match(r'^N\d+$', string) is not None

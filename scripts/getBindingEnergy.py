@@ -21,38 +21,6 @@ AMBIGUOUS_NUCLEOTIDES = {
 }
 
 
-def initialize_output_file(cns_id, output_folder, output_file_suffix):
-    """Creates or clears an output file and returns its path.
-
-    This function ensures that the specified output directory exists,
-    constructs the full output file path, and either creates a new, empty
-    file or truncates an existing file to zero length.
-
-    Args:
-        cns_id (str): The CNS ID. This is used to construct the filename.
-        output_folder (str): The path to the directory where the output file
-            should be created.
-        output_file_suffix (str): The suffix (including the extension, e.g., ".txt")
-            to be added to the CNS ID to form the filename.
-
-    Returns:
-        str: The full path to the created or cleared output file.
-
-    Example:
-        >>> output_file = initialize_output_file("CNS42", "/path/to/results", "_results.txt")
-        >>> print(output_file)
-        /path/to/results/CNS42_results.txt
-
-    Notes:
-        - If the `output_folder` does not exist, it will be created.
-        - If a file with the constructed filename already exists, it will be
-          truncated (emptied).
-    """
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-    filename = os.path.join(output_folder, cns_id + output_file_suffix)
-    open(filename, 'w').close()  # Create or truncate the file
-    return filename
 
 
 
